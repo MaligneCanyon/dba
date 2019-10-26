@@ -1,0 +1,98 @@
+#! /usr/bin/env ruby
+require "pg"
+
+# puts "Hello World"
+
+# Move the add_expense and list_expenses methods into a new class, ExpenseData
+# Change the CONNECTION constant (DB) to an instance variable
+class ExpenseData
+  def initialize
+    # Create a connection to the database
+    # DB = PG.connect(dbname: "expense_db") # use PG::Connection.new instead
+    # DB = PG::Connection.new(dbname: "expense_db")
+    @db = PG::Connection.new(dbname: "expense_db")
+  end
+
+  # list expenses in a tbl-like format
+  def list_expenses
+    # Execute a query to retrieve all rows from the expenses table, ordered
+    # from oldest to newest
+    result = @db.exec "SELECT * FROM expenses ORDER BY created_on, id;"
+
+    # Iterate through each result row and print it to the screen
+    result.each do |row|
+      puts "#{row["id"].rjust(3)} | #{row["created_on"]} | #{row["amount"].rjust(10)} | #{row["memo"]}"
+    end
+  end
+
+  # add a command, add, that can be used to add new expenses to the system
+  def add_expense
+    # Make sure that the add cmd is always passed any additional params needed to
+    # add an expense; if it isn't, display an error message
+    if (ARGV[1] =~ /^[0-9]{1,4}\.[0-9]{0,2}$/) && ARGV[2]
+      # ARGV[1] is a numeric value (range 0.00 to 9999.99) and ARGV[2] exists
+      # Execute an insert statement to add the new expense to the table
+      # db.exec "INSERT INTO expenses (amount, memo) VALUES (1.23, 'some text');" # for testing
+      # DB.exec "INSERT INTO expenses (amount, memo) VALUES (#{ARGV[1]}, '#{ARGV[2]}');" # don't use .exec !
+      if ARGV[3] # a date was supplied
+        begin
+          Date.parse(ARGV[3]) # raises ArgumentError if date is invalid
+        rescue ArgumentError
+          puts "If supplying a date, you must provide a valid value in YYYY-MM-DD format."
+        else
+          sql = "INSERT INTO expenses (amount, memo, created_on) VALUES ($1, $2, $3);"
+           @db.exec_params(sql, [ARGV[1], ARGV[2], ARGV[3]])
+        end
+      else # use the db DEFAULT value for the date
+        sql = "INSERT INTO expenses (amount, memo) VALUES ($1, $2);"
+        @db.exec_params(sql, [ARGV[1], ARGV[2]])
+      end
+    else
+      puts "You must provide an amount and memo."
+    end
+  end
+end
+
+
+# Move the parameter handling into a new class, CLI
+# Create an instance of ExpenseData in CLI#initialize
+class CLI
+  def initialize
+    @expdata = ExpenseData.new
+  end
+
+  # print a list of avail cmd-line args
+  def display_help
+    puts <<-HELP # create and output a heredoc w/ avail cmd-line options
+      An expense recording system
+
+      Commands:
+
+      add AMOUNT MEMO [DATE] - record a new expense
+      clear - delete all expenses
+      list - list all expenses
+      delete NUMBER - remove expense with id NUMBER
+      search QUERY - list expenses with a matching memo field
+    HELP
+  end
+
+  def run(args)
+    # Check the value of the first argument passed to the program, and call the
+    # appropriate method
+    if args.size > 0
+      case args[0]
+        when "list"
+          @expdata.list_expenses
+        when "add"
+          @expdata.add_expense
+      end
+    else
+      display_help
+    end
+  end
+end
+
+
+# Create a new instance of CLI and call CLI#run on it, passing ARGV
+cli = CLI.new
+cli.run(ARGV)
