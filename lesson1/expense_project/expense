@@ -19,10 +19,11 @@ class ExpenseData
     # from oldest to newest
     result = @db.exec "SELECT * FROM expenses ORDER BY created_on, id;"
 
-    # Iterate through each result row and print it to the screen
-    result.each do |row|
-      puts "#{row["id"].rjust(3)} | #{row["created_on"]} | #{row["amount"].rjust(10)} | #{row["memo"]}"
-    end
+    # # Iterate through each result row and print it to the screen
+    # result.each do |row|
+    #   puts "#{row["id"].rjust(3)} | #{row["created_on"]} | #{row["amount"].rjust(10)} | #{row["memo"]}"
+    # end
+    display_expenses(result)
   end
 
   # add a command, add, that can be used to add new expenses to the system
@@ -33,7 +34,8 @@ class ExpenseData
       # ARGV[1] is a numeric value (range 0.00 to 9999.99) and ARGV[2] exists
       # Execute an insert statement to add the new expense to the table
       # db.exec "INSERT INTO expenses (amount, memo) VALUES (1.23, 'some text');" # for testing
-      # DB.exec "INSERT INTO expenses (amount, memo) VALUES (#{ARGV[1]}, '#{ARGV[2]}');" # don't use .exec !
+      # WARNING: don't use .exec with user-entered data !
+      # DB.exec "INSERT INTO expenses (amount, memo) VALUES (#{ARGV[1]}, '#{ARGV[2]}');"
       if ARGV[3] # a date was supplied
         begin
           Date.parse(ARGV[3]) # raises ArgumentError if date is invalid
@@ -41,7 +43,7 @@ class ExpenseData
           puts "If supplying a date, you must provide a valid value in YYYY-MM-DD format."
         else
           sql = "INSERT INTO expenses (amount, memo, created_on) VALUES ($1, $2, $3);"
-           @db.exec_params(sql, [ARGV[1], ARGV[2], ARGV[3]])
+          @db.exec_params(sql, [ARGV[1], ARGV[2], ARGV[3]])
         end
       else # use the db DEFAULT value for the date
         sql = "INSERT INTO expenses (amount, memo) VALUES ($1, $2);"
@@ -51,12 +53,52 @@ class ExpenseData
       puts "You must provide an amount and memo."
     end
   end
+
+  def search_expenses
+    # if (ARGV[1])
+      # sql = "SELECT * FROM expenses WHERE memo = $1;"
+      sql = "SELECT * FROM expenses WHERE memo ILIKE ('%'||$1||'%');"
+      result = @db.exec_params(sql, [ARGV[1]])
+
+      if result.values.empty?
+        puts "There is no memo like '#{ARGV[1]}'."
+      else
+        display_expenses(result)
+      end
+    # else
+    #   puts "You must provide a search string (or memo)."
+    # end
+  end
+
+  def delete_expense
+    result = @db.exec("SELECT id FROM expenses;")
+    if result.values.flatten.include?(ARGV[1])
+      sql = "SELECT * FROM expenses WHERE id = $1;"
+      result = @db.exec_params(sql, [ARGV[1]])
+      sql = "DELETE FROM expenses WHERE id = $1;"
+      @db.exec_params(sql, [ARGV[1]])
+      puts "The following expense has been deleted:"
+      display_expenses(result)
+    else
+      puts "There is no expense with the id '#{ARGV[1]}'."
+    end
+  end
+
+  private
+
+  # Display a tbl of results
+  def display_expenses(result)
+    # Iterate through each result row and print it to the screen
+    result.each do |row|
+      puts "#{row["id"].rjust(3)} | #{row["created_on"]} | #{row["amount"].rjust(10)} | #{row["memo"]}"
+    end
+  end
 end
 
 
 # Move the parameter handling into a new class, CLI
-# Create an instance of ExpenseData in CLI#initialize
 class CLI
+  # Create an instance of ExpenseData in CLI#initialize
   def initialize
     @expdata = ExpenseData.new
   end
@@ -76,15 +118,21 @@ class CLI
     HELP
   end
 
-  def run(args)
+  def run
     # Check the value of the first argument passed to the program, and call the
     # appropriate method
-    if args.size > 0
-      case args[0]
+    if ARGV.size > 0
+      case ARGV[0]
         when "list"
           @expdata.list_expenses
         when "add"
           @expdata.add_expense
+        when "search"
+          @expdata.search_expenses
+        when "delete"
+          @expdata.delete_expense
+        else
+          puts "Unknown command; please try again."
       end
     else
       display_help
@@ -93,6 +141,6 @@ class CLI
 end
 
 
-# Create a new instance of CLI and call CLI#run on it, passing ARGV
-cli = CLI.new
-cli.run(ARGV)
+# Create a new instance of CLI and call CLI#run on it
+# Note: there is no need to pass in ARGV; it is a global var
+cli = CLI.new.run
