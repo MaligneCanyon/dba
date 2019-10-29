@@ -1,5 +1,6 @@
 #! /usr/bin/env ruby
-require "pg"
+require 'pg'
+require 'io/console'
 
 # puts "Hello World"
 
@@ -11,6 +12,9 @@ class ExpenseData
     # DB = PG.connect(dbname: "expense_db") # use PG::Connection.new instead
     # DB = PG::Connection.new(dbname: "expense_db")
     @db = PG::Connection.new(dbname: "expense_db")
+
+    # Call the setup_schema method
+    setup_schema
   end
 
   # list expenses in a tbl-like format
@@ -84,13 +88,50 @@ class ExpenseData
     end
   end
 
+  def clear_expenses
+    puts "This will remove all expenses. Are you sure? (y/n)"
+    # if $stdin.gets.chomp.downcase == 'y'
+    if $stdin.getch.downcase == 'y'
+      @db.exec("DELETE FROM expenses;")
+      puts "All expenses have been deleted."
+    end
+  end
+
   private
 
   # Display a tbl of results
   def display_expenses(result)
-    # Iterate through each result row and print it to the screen
+    # The list command should display a count of expenses in addition to the total of all expenses
+    num = result.ntuples
+    puts case num
+      when 0
+        "There are no expenses."
+      when 1
+        "There is 1 expense."
+      else
+        "There are #{num} expenses."
+    end
+
+    total = 0
     result.each do |row|
+      total += (row["amount"].to_f * 100).round # convert to pennies
       puts "#{row["id"].rjust(3)} | #{row["created_on"]} | #{row["amount"].rjust(10)} | #{row["memo"]}"
+    end
+    puts "-" * 50
+    puts "Total #{(total.to_f / 100).round(2).to_s.rjust(23)}"
+  end
+
+  # Add a new method, setup_schema to ExpenseData. Call this method inside ExpenseData#initialize.
+  def setup_schema
+    # See if the expenses table already exists. If it doesn't, create it
+    sql =
+      "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'expenses';"
+    if @db.exec(sql).field_values("count").first == "0" # the table does not exist
+      # Open the schema.sql file, read in the schema for the table, and send it to the db server
+      filehandle = File.open("./schema.sql", "r")
+      sql = File.read(filehandle)
+      filehandle.close
+      @db.exec(sql)
     end
   end
 end
@@ -131,6 +172,8 @@ class CLI
           @expdata.search_expenses
         when "delete"
           @expdata.delete_expense
+        when "clear"
+          @expdata.clear_expenses
         else
           puts "Unknown command; please try again."
       end

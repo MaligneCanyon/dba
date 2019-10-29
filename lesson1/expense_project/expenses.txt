@@ -46,7 +46,6 @@ Searching Expenses
 
 Implementation
 --------------
-
 1. add a new method search_expenses to the ExpenseData class
 2. add code the CLI#run method to handle the 'search' and 'search_str' args
 
@@ -56,7 +55,15 @@ Deleting Expenses
 
 Implementation
 --------------
-
 1. add a new method delete_expense to the ExpenseData class
 2. add code the CLI#run method to handle the 'delete' and 'id' args
+
+
+Clearing Expenses
+=================
+
+Implementation
+--------------
+1. add a new method clear_expenses to the ExpenseData class
+2. add code the CLI#run method to handle the 'clear' arg and y/n response
 
