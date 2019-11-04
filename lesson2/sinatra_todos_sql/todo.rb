@@ -7,6 +7,9 @@ require "sinatra/reloader" unless production?
 require "sinatra/content_for"
 require "tilt/erubis"
 
+require_relative "database_persistence"
+# require_relative "session_persistence"
+
 # enable sessions
 configure do
   enable :sessions
@@ -64,52 +67,6 @@ helpers do
   end
 end
 
-# the SessionPersistence class encapsulates all of the interactions w/ the session ...
-# want move any refs to the session to this class
-# (including anything that sets a value in the session)
-class SessionPersistence # @storage is an instance of this class
-  def initialize(session)
-    @session = session
-    @session[:lists] ||= []
-  end
-
-  def find_list(id)
-    # @session[:lists].find { |list| list[:id] == id }
-    all_lists.find { |list| list[:id] == id }
-  end
-
-  def all_lists
-    @session[:lists]
-  end
-
-  def create_new_list(list_name)
-    id = next_id(@session[:lists]) # gen an id for the new list
-    @session[:lists] << { id: id, name: list_name, todos: [] }
-  end
-
-  def delete_list(id)
-    all_lists.reject! { |list| list[:id] == id }
-  end
-
-  def update_list_name(id, list_name)
-    list = find_list(id) # @list becomes find_list(id) # scope issue ???
-    list[:name] = list_name
-  end
-
-  def create_new_todo(id, text)
-    list = find_list(id) # @list becomes find_list(id) # scope issue ???
-    id = next_id(list[:todos]) # gen an id for the new todo item
-    list[:todos] << { id: id, name: text, complete: false }
-  end
-
-  private
-
-  def next_id(items)
-    max = items.map { |item| item[:id] }.max || 0
-    max + 1
-  end
-end
-
 # retrieve a list w/ a specific id
 def load_list(id)
   # the storage obj holds all data for our ap;
@@ -155,7 +112,9 @@ end
 # end
 
 before do
-  @storage = SessionPersistence.new(session)
+  @storage = DatabasePersistence.new
+  # @storage = SessionPersistence.new(session)
+
   # make sure the user session at least contains an empty arr if there are
   # no list items
   # session[:lists] ||= [] # moved to SessionPersistence#initialize
@@ -181,7 +140,7 @@ get "/lists" do
   #   { name: "Lunch Groceries", todos: [] },
   #   { name: "Dinner Groceries", todos: [] }
   # ]
-  @lists = storage.all_lists
+  @lists = @storage.all_lists
   # @lists = session[:lists]
   erb :lists, layout: :layout
 end
@@ -307,7 +266,8 @@ post "/lists/:list_id/todos/:todo_id/delete" do
   @list = load_list(@list_id)
 
   @todo_id = params[:todo_id].to_i
-  unless @list[:todos].reject! { |todo| todo[:id] == @todo_id }
+  unless @storage.delete_todo(@list_id, @todo_id)
+  # unless @list[:todos].reject! { |todo| todo[:id] == @todo_id } # moved to SessionPersistence class
     # display an err msg and re-render the form to allow err correction
     session[:error] = 'Could not delete todo'
     erb :specific_list, layout: :layout
@@ -325,15 +285,16 @@ end
 
 # mark a todo item in a list as complete/incomplete
 post "/lists/:list_id/todos/:todo_id" do
+  # get the value of the :complete flag, display a success msg, and redirect
   @list_id = params[:list_id].to_i
   @list = load_list(@list_id)
 
   @todo_id = params[:todo_id].to_i
-  @todo = @list[:todos].find { |todo| todo[:id] == @todo_id }
-
-  # get the value of the :complete flag, display a success msg, and redirect
   is_complete = params[:complete] == 'true'
-  @todo[:complete] = is_complete
+  @storage.update_todo_status(@list_id, @todo_id, is_complete)
+  # @todo = @list[:todos].find { |todo| todo[:id] == @todo_id } # moved to SessionPersistence class
+  # @todo[:complete] = is_complete # moved to SessionPersistence class
+
   session[:success] = "The todo is #{is_complete ? 'complete' : 'incomplete'}"
   redirect "/lists/#{@list_id}"
 end
@@ -343,9 +304,9 @@ post "/lists/:list_id/complete_all" do
   @list_id = params[:list_id].to_i
   @list = load_list(@list_id)
 
-  @list[:todos].each do |todo|
-    todo[:complete] = true
-  end
+  @storage.mark_all_todos_complete(@list_id)
+  # @list[:todos].each { |todo| todo[:complete] = true } # moved to SessionPersistence class
+
   session[:success] = "All todos have been completed"
   redirect "/lists/#{@list_id}"
 end

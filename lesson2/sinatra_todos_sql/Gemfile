@@ -10,3 +10,6 @@ ruby "2.6.0"
 group :production do
   gem "puma"
 end
+
+gem "pg" # used to setup db connection
+
