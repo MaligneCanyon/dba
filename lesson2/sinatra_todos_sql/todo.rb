@@ -7,8 +7,8 @@ require "sinatra/reloader" unless production?
 require "sinatra/content_for"
 require "tilt/erubis"
 
-require_relative "database_persistence"
 # require_relative "session_persistence"
+require_relative "database_persistence"
 
 # enable sessions
 configure do
@@ -69,11 +69,13 @@ end
 
 # retrieve a list w/ a specific id
 def load_list(id)
+  # look thru the session to find a list w/ the spec'd id
+  # list = session[:lists].find { |list| list[:id] == id } # moved to SessionPersistence class
+
   # the storage obj holds all data for our ap;
   # it is an instance of the SessionPersistence class
   list = @storage.find_list(id)
-  # look thru the session to find a list w/ the spec'd id
-  # list = session[:lists].find { |list| list[:id] == id } # moved to SessionPersistence class
+
   return list if list
   session[:error] = "The specified list was not found"
   redirect "/lists"
@@ -105,15 +107,15 @@ def err_for_todo(name)
   end
 end
 
-# gen a unique id # moved to SessionPersistence
+# gen a unique id # moved to SessionPersistence class
 # def next_id(items)
 #   max = items.map { |item| item[:id] }.max || 0
 #   max + 1
 # end
 
 before do
-  @storage = DatabasePersistence.new
   # @storage = SessionPersistence.new(session)
+  @storage = DatabasePersistence.new(logger)
 
   # make sure the user session at least contains an empty arr if there are
   # no list items
@@ -140,8 +142,8 @@ get "/lists" do
   #   { name: "Lunch Groceries", todos: [] },
   #   { name: "Dinner Groceries", todos: [] }
   # ]
-  @lists = @storage.all_lists
   # @lists = session[:lists]
+  @lists = @storage.all_lists
   erb :lists, layout: :layout
 end
 
@@ -164,9 +166,9 @@ post "/lists" do
     erb :new_list, layout: :layout
   else
     # create the new list, display a success msg, and redirect
-    @storage.create_new_list(list_name)
     # id = next_id(session[:lists]) # gen an id for the new list # moved to SessionPersistence class
     # session[:lists] << { id: id, name: list_name, todos: [] } # moved to SessionPersistence class
+    @storage.create_new_list(list_name)
 
     session[:success] = 'The list has been created'
     redirect "/lists"
@@ -202,8 +204,8 @@ post "/lists/:list_id" do
     # update the list, display a success msg, and redirect
     # Note: we are manipulating data inside a specific list; this changes session data
     # (@list comes from load_list(), which finds a list w/i the session)
-    @storage.update_list_name(@list_id, list_name)
     # @list[:name] = list_name # moved to SessionPersistence class
+    @storage.update_list_name(@list_id, list_name)
 
     session[:success] = 'The list name has been updated'
     # redirect "/lists/:list_id" # surprisingly, this doesn't work (list_id must be a str) ...
@@ -219,8 +221,8 @@ post "/lists/:list_id/delete" do
   @list_id = params[:list_id].to_i
   @list = load_list(@list_id)
 
-  unless @storage.delete_list(@list_id)
   # unless session[:lists].reject! { |list| list[:id] == @list_id } # moved to SessionPersistence
+  unless @storage.delete_list(@list_id)
     # display an err msg and re-render the form to allow err correction
     session[:error] = 'Could not delete list'
     erb :edit_list, layout: :layout
@@ -251,9 +253,9 @@ post "/lists/:list_id/todos" do
     erb :specific_list, layout: :layout
   else
     # create the new todo item, display a success msg, and redirect
-    @storage.create_new_todo(@list_id, text)
     # id = next_id(@list[:todos]) # gen an id for the new todo item # moved to SessionPersistence class
     # @list[:todos] << { id: id, name: text, complete: false } # moved to SessionPersistence class
+    @storage.create_new_todo(@list_id, text)
 
     session[:success] = 'The todo was added'
     redirect "/lists/#{@list_id}"
@@ -266,8 +268,8 @@ post "/lists/:list_id/todos/:todo_id/delete" do
   @list = load_list(@list_id)
 
   @todo_id = params[:todo_id].to_i
-  unless @storage.delete_todo(@list_id, @todo_id)
   # unless @list[:todos].reject! { |todo| todo[:id] == @todo_id } # moved to SessionPersistence class
+  unless @storage.delete_todo(@list_id, @todo_id)
     # display an err msg and re-render the form to allow err correction
     session[:error] = 'Could not delete todo'
     erb :specific_list, layout: :layout
@@ -291,9 +293,9 @@ post "/lists/:list_id/todos/:todo_id" do
 
   @todo_id = params[:todo_id].to_i
   is_complete = params[:complete] == 'true'
-  @storage.update_todo_status(@list_id, @todo_id, is_complete)
   # @todo = @list[:todos].find { |todo| todo[:id] == @todo_id } # moved to SessionPersistence class
   # @todo[:complete] = is_complete # moved to SessionPersistence class
+  @storage.update_todo_status(@list_id, @todo_id, is_complete)
 
   session[:success] = "The todo is #{is_complete ? 'complete' : 'incomplete'}"
   redirect "/lists/#{@list_id}"
@@ -304,8 +306,8 @@ post "/lists/:list_id/complete_all" do
   @list_id = params[:list_id].to_i
   @list = load_list(@list_id)
 
-  @storage.mark_all_todos_complete(@list_id)
   # @list[:todos].each { |todo| todo[:complete] = true } # moved to SessionPersistence class
+  @storage.mark_all_todos_complete(@list_id)
 
   session[:success] = "All todos have been completed"
   redirect "/lists/#{@list_id}"
