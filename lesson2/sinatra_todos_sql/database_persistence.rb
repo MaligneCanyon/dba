@@ -71,15 +71,27 @@ class DatabasePersistence # @storage is an instance of this class
   def create_new_list(list_name)
     # list_id = next_id(@session[:lists]) # gen an id for the new list
     # @session[:lists] << { id: list_id, name: list_name, todos: [] }
+
+    sql = "INSERT INTO lists (name) VALUES ($1);"
+    query(sql, list_name)
   end
 
   def delete_list(list_id)
     # all_lists.reject! { |list| list[:id] == list_id }
+
+    # the following line is only req'd if there's no ON DELETE CASCADE
+    # condition attached to todos.list_id
+    # query("DELETE FROM todos WHERE list_id = $1;", list_id)
+    sql = "DELETE FROM lists WHERE id = $1;"
+    query(sql, list_id)
   end
 
   def update_list_name(list_id, list_name)
     # list = find_list(list_id) # @list becomes find_list(id)
     # list[:name] = list_name
+
+    sql = "UPDATE lists SET name = $2 WHERE id = $1;"
+    query(sql, list_id, list_name)
   end
 
   def create_new_todo(list_id, todo_name)

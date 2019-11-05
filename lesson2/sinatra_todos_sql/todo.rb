@@ -2,8 +2,7 @@
 # stick to it to avoid annoying typos
 
 require "sinatra"
-# require "sinatra/reloader" if development?
-require "sinatra/reloader" unless production?
+# require "sinatra/reloader" if development? # or use 'unless production?' # moved to configure blk
 require "sinatra/content_for"
 require "tilt/erubis"
 
@@ -16,6 +15,13 @@ configure do
   set :session_secret, 'secret'
   set :erb, :escape_html => true
 end
+
+# configure the development enviro
+configure(:development) do
+  require "sinatra/reloader"
+  also_reload "database_persistence.rb"
+end
+
 
 # helpers should accept a Todo obj as input; sim to instance
 # methods of a Todo class
