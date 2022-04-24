@@ -1,0 +1,21 @@
+2.
+- need to alter the schema of table 'todos', so that todo items are autom'ly
+deleted if the corresponding list is deleted
+
+- in the schema.sql file
+CREATE TABLE todos (
+  ...
+  list_id int NOT NULL REFERENCES lists (id)
+);
+
+becomes
+CREATE TABLE todos (
+  ...
+  list_id int NOT NULL REFERENCES lists (id) ON DELETE CASCADE
+);
+
+- rather than recreating the db, can just add the constraint to the table
+  - first, drop the existing constraint
+    ALTER TABLE todos DROP CONSTRAINT todos_list_id_fkey;
+  - then re-add it (w/ the ON DELETE CASCADE condition)
+    ALTER TABLE todos ADD FOREIGN KEY (list_id) REFERENCES lists (id) ON DELETE CASCADE;

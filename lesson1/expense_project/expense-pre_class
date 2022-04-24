@@ -1,0 +1,66 @@
+#! /usr/bin/env ruby
+require "pg"
+
+# puts "Hello World"
+
+# Create a connection to the database
+# DB = PG.connect(dbname: "expense_db") # use PG::Connection.new instead
+DB = PG::Connection.new(dbname: "expense_db")
+
+# list expenses in a tbl-like format
+def list_expenses
+
+  # Execute a query to retrieve all rows from the expenses table, ordered
+  # from oldest to newest
+  result = DB.exec "SELECT * FROM expenses ORDER BY created_on;"
+
+  # Iterate through each result row and print it to the screen
+  result.each do |row|
+    puts "#{row["id"].rjust(3)} | #{row["created_on"]} | #{row["amount"].rjust(10)} | #{row["memo"]}"
+  end
+end
+
+# print a list of avail cmd-line args
+def display_help
+  puts <<-HELP # create and output a heredoc w/ avail cmd-line options
+An expense recording system
+
+Commands:
+
+add AMOUNT MEMO [DATE] - record a new expense
+clear - delete all expenses
+list - list all expenses
+delete NUMBER - remove expense with id NUMBER
+search QUERY - list expenses with a matching memo field
+  HELP
+end
+
+# add a command, `add`, that can be used to add new expenses to the system
+def add_expense
+  # Make sure that the `add` cmd is always passed any additional params needed to
+  # add an expense; if it isn't, display an error message
+  # Note: would be nice to allow entry of a date also (rather than using the current date)
+  if (ARGV[1] =~ /^[0-9]{1,4}\.[0-9]{0,2}$/) && ARGV[2]
+    # ARGV[1] is a numeric value (range 0.00 to 9999.99) and ARGV[2] exists
+    # Execute an insert statement to add the new expense to the table
+    # db.exec "INSERT INTO expenses (amount, memo) VALUES (1.23, 'some text');" # for testing
+    # WARNING: don't use .exec with user-entered data !
+    # DB.exec "INSERT INTO expenses (amount, memo) VALUES (#{ARGV[1]}, '#{ARGV[2]}');"
+    DB.exec_params("INSERT INTO expenses (amount, memo) VALUES ($1, $2);", [ARGV[1], ARGV[2]])
+  else
+    puts "You must provide an amount and memo."
+  end
+end
+
+# Check the value of the first argument passed to the program, and call the
+# appropriate method
+if ARGV.size > 0
+  case ARGV[0]
+    when "list"
+      list_expenses
+    when "add"
+      add_expense
+  end
+else
+  display_help
+end

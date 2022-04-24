@@ -1,0 +1,70 @@
+Database Design
+===============
+
+-- create the db
+createdb expense_db
+
+-- create a schema.sql file
+
+-- load the db from the sql file
+psql -d expense_db < schema.sql
+
+-- connect to the db
+psql expense_db
+
+
+Practice Problems
+-----------------
+
+1.
+INSERT INTO expenses (amount, memo) VALUES
+  (9999.99, 'max amount');
+INSERT INTO expenses (amount, memo) VALUES
+  (10000.00, 'too much');
+
+2.
+INSERT INTO expenses (amount, memo) VALUES
+  (-9999.99, 'min amount');
+INSERT INTO expenses (amount, memo) VALUES
+  (-10000.00, 'too little');
+
+3.
+DELETE FROM expenses WHERE id = 2; -- del the negative value
+ALTER TABLE expenses ADD CHECK (amount > 0.00);
+
+
+Adding Expenses
+===============
+
+INSERT INTO expenses (amount, memo) VALUES
+  (14.56, 'Pencils'),
+  (3.29, 'Coffee'),
+  (49.99, 'Text Editor');
+
+
+Searching Expenses
+==================
+
+Implementation
+--------------
+1. add a new method search_expenses to the ExpenseData class
+2. add code the CLI#run method to handle the 'search' and 'search_str' args
+
+
+Deleting Expenses
+=================
+
+Implementation
+--------------
+1. add a new method delete_expense to the ExpenseData class
+2. add code the CLI#run method to handle the 'delete' and 'id' args
+
+
+Clearing Expenses
+=================
+
+Implementation
+--------------
+1. add a new method clear_expenses to the ExpenseData class
+2. add code the CLI#run method to handle the 'clear' arg and y/n response
+
