@@ -7,12 +7,14 @@
   <section id="todos">
 % end %>
 -->
-<section id="todos" class="<%= list_class(@list) %>">
+<section id="todos" class="<%= list_class(@list, @mode) %>">
 
   <header>
     <h2><%= @list[:name] %></h2>
     <ul>
-      <% if todos_count(@list) > 0 %>
+      <!-- % if todos_count(@list) > 0 %> --> <!-- session_persistence -->
+      <!-- % if @list[:todos_count] > 0 %> --> <!-- database_persistence -->
+      <% if (@mode ? @list[:todos_count] : todos_count(@list)) > 0 %> <!-- hybrid -->
         <li>
           <!-- <form action="/lists/%= @list_ndx %>/complete_all" method="post"> -->
           <!-- use a unique list id -->
@@ -37,7 +39,8 @@
     <!-- % @list[:todos].each_with_index do |todo, todo_ndx| %> -->
     <!-- % sort_todos(@list[:todos]) do |todo, todo_ndx| %> -->
     <!-- % sort_todos(@list[:todos]) do |todo| %> we don't need todo_ndx if we use a unique id -->
-    <% sort_todos(@todos) do |todo| %> <!-- :todos is no longer found w/i @list; use @todos instead -->
+    <!-- if db_mode, :todos is no longer found w/i @list; use @todos instead -->
+    <% sort_todos(@todos) do |todo| %>
       <!-- <li> -->
       <% if todo[:complete] %>
         <li class="complete">

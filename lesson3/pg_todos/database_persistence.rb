@@ -39,8 +39,8 @@ class DatabasePersistence # @storage is an instance of this class
               count(NULLIF(todos.complete, true)) AS todos_remaining
             FROM lists LEFT OUTER JOIN todos ON lists.id = todos.list_id
             WHERE lists.id = $1 -- limit result to a single list
-            GROUP BY lists.id
-            ORDER BY lists.name;
+            GROUP BY lists.id;
+            -- ORDER BY lists.name; # n/r since only one list
     SQL
     result = query(sql, list_id)
 
@@ -160,10 +160,6 @@ class DatabasePersistence # @storage is an instance of this class
     query(sql, list_id)
   end
 
-  def disconnect
-    @db.close
-  end
-
   # rtn all of the todo items in a specific list
   def find_todos(list_id)
     todos_sql = "SELECT * FROM todos WHERE list_id = $1;"
@@ -176,6 +172,10 @@ class DatabasePersistence # @storage is an instance of this class
         complete: todo_tuple["complete"] == "t"
       }
     end
+  end
+
+  def disconnect
+    @db.close
   end
 
   private

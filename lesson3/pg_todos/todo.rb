@@ -1,15 +1,15 @@
 # don't use both "completed" and "complete" for identifiers; choose one and
 # stick to it to avoid annoying typos
 
-# `mode` will indicate whether session or db persisance is used
-
 require "sinatra"
 # require "sinatra/reloader" if development? # or use 'unless production?' # moved to configure blk
 require "sinatra/content_for"
 require "tilt/erubis"
 
-# require_relative "session_persistence" #mode
-require_relative "database_persistence" #mode
+# 'mode' will indicate whether session or db persisance is used # move to configure blk ?
+db_mode = false
+# require_relative "#{db_mode ? 'database' : 'session'}_persistence"
+require_relative (db_mode ? "database" : "session") << "_persistence"
 
 # enable sessions
 configure do
@@ -21,8 +21,7 @@ end
 # configure the development enviro
 configure(:development) do
   require "sinatra/reloader"
-  # also_reload "session_persistence.rb" #mode
-  also_reload "database_persistence.rb" #mode
+  also_reload "#{db_mode ? 'database' : 'session'}_persistence.rb"
 end
 
 
@@ -30,42 +29,43 @@ end
 # methods of a Todo class
 helpers do
   # determine whether all todo items w/i a list are complete
-  def all_complete?(list)
-    p list #gmk
-    # list[:todos].size > 0 && list[:todos].all? { |todo| todo[:complete] }
-    # todos_count(list) > 0 && todos_remaining(list) == 0
-    list[:todos_count] > 0 && list[:todos_remaining] == 0
-  end
+  def all_complete?(list, mode)
+    # p list # for debug
+    # p mode # for debug
+    mode ?
+      (list[:todos_count] > 0 && list[:todos_remaining] == 0) :
+      # (todos_count(list) > 0 && list[:todos].all? { |todo| todo[:complete] })
+      (todos_count(list) > 0 && todos_remaining(list) == 0)
+ end
 
   # rtn a str identifying the CSS class of a list (Todo obj)
-  def list_class(list)
-    "complete" if all_complete?(list)
+  def list_class(list, mode)
+    "complete" if all_complete?(list, mode)
   end
 
   # determine the number of todo items in a list (Todo obj)
-  def todos_count(list) # n/r ? Still used in specific_list.erb !
-    # list[:todos].size # :todos is no longer found w/i @list; use @todos instead
-    @storage.find_todos(@list_id).size
+  def todos_count(list)
+    list[:todos].size
   end
 
   # count the number of incomplete todo items w/i a list (Todo obj)
-  # def todos_remaining(list) # n/r
-  #   list[:todos].count { |todo| !todo[:complete] }
-  # end
+  def todos_remaining(list)
+    list[:todos].count { |todo| !todo[:complete] }
+  end
 
   # rtn a str displaying the number of remaining and total number of todo items
-  def todo_counts(list)
-    # "#{todos_remaining(list)} / #{todos_count(list)}"
-    # "#{todos_remaining(list)} / #{todos_count(list)}"
-    "#{list[:todos_remaining]} / #{list[:todos_count]}"
+  def todo_counts(list, mode)
+    mode ?
+      "#{list[:todos_remaining]} / #{list[:todos_count]}" :
+      "#{todos_remaining(list)} / #{todos_count(list)}"
   end
 
   # sort some lists based on whether all list items are complete, while
   # saving the original ndx position
-  def sort_lists(lists, &blk)
+  def sort_lists(lists, mode, &blk)
     # separate the lists into a groups (hashes) of incomplete and completed lists
     # hashes are ordered for R. versions >= 1.9
-    complete_lists, incomplete_lists = lists.partition { |list| all_complete?(list) }
+    complete_lists, incomplete_lists = lists.partition { |list| all_complete?(list, mode) }
     # since we are only passing the list and not its ndx, we can yield the blk directly
     incomplete_lists.each(&blk)
     complete_lists.each(&blk)
@@ -132,8 +132,8 @@ before do
   # no list items
   # session[:lists] ||= [] # moved to SessionPersistence#initialize
 
-  # @storage = SessionPersistence.new(session) #mode
-  @storage = DatabasePersistence.new(logger) #mode
+  @storage =
+    db_mode ? DatabasePersistence.new(logger) : SessionPersistence.new(session)
 
   # could move
   #   @list = ...
@@ -157,6 +157,7 @@ get "/lists" do
   #   { name: "Dinner Groceries", todos: [] }
   # ]
   # @lists = session[:lists]
+  @mode = db_mode
   @lists = @storage.all_lists
   erb :lists, layout: :layout
 end
@@ -193,7 +194,8 @@ end
 get "/lists/:list_id" do
   @list_id = params[:list_id].to_i
   @list = load_list(@list_id)
-  @todos = @storage.find_todos(@list_id) # :todos is no longer found w/i @list; use @todos instead
+  @mode = db_mode
+  @todos = db_mode ? @storage.find_todos(@list_id) : @list[:todos]
   erb :specific_list, layout: :layout
 end
 
@@ -214,6 +216,8 @@ post "/lists/:list_id" do
   if error
     # display an err msg and re-render the form to allow err correction
     session[:error] = error
+    @mode = db_mode
+    @todos = @mode ? @storage.find_todos(@list_id) : @list[:todos]
     erb :specific_list, layout: :layout
   else
     # update the list, display a success msg, and redirect
@@ -265,6 +269,8 @@ post "/lists/:list_id/todos" do
   if error
     # display an err msg and re-render the form to allow err correction
     session[:error] = error
+    @mode = db_mode
+    @todos = @mode ? @storage.find_todos(@list_id) : @list[:todos]
     erb :specific_list, layout: :layout
   else
     # create the new todo item, display a success msg, and redirect
@@ -287,6 +293,8 @@ post "/lists/:list_id/todos/:todo_id/delete" do
   unless @storage.delete_todo(@list_id, @todo_id)
     # display an err msg and re-render the form to allow err correction
     session[:error] = 'Could not delete todo'
+    @mode = db_mode
+    @todos = @mode ? @storage.find_todos(@list_id) : @list[:todos]
     erb :specific_list, layout: :layout
   else
     # chk to see whether the req was sent over AJAX
@@ -329,5 +337,5 @@ post "/lists/:list_id/complete_all" do
 end
 
 after do
-  @storage.disconnect
+  @storage.disconnect if db_mode
 end
