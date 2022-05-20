@@ -7,8 +7,7 @@ require "sinatra/content_for"
 require "tilt/erubis"
 
 # 'mode' will indicate whether session or db persisance is used # move to configure blk ?
-db_mode = false
-# require_relative "#{db_mode ? 'database' : 'session'}_persistence"
+db_mode = true
 require_relative (db_mode ? "database" : "session") << "_persistence"
 
 # enable sessions
@@ -21,7 +20,7 @@ end
 # configure the development enviro
 configure(:development) do
   require "sinatra/reloader"
-  also_reload "#{db_mode ? 'database' : 'session'}_persistence.rb"
+  also_reload (db_mode ? "database" : "session") << "_persistence.rb"
 end
 
 
@@ -34,7 +33,7 @@ helpers do
     # p mode # for debug
     mode ?
       (list[:todos_count] > 0 && list[:todos_remaining] == 0) :
-      # (todos_count(list) > 0 && list[:todos].all? { |todo| todo[:complete] })
+      # (todos_count(list) > 0 && list[:todos].all? { |todo| todo[:complete] }) # alt
       (todos_count(list) > 0 && todos_remaining(list) == 0)
  end
 
@@ -121,6 +120,12 @@ def err_for_todo(name)
   end
 end
 
+# rtn a specific list of todo items; equiv to
+# @todos = @mode ? @storage.find_todos(@list_id) : @list[:todos]
+def get_todos(data_store, id, list, mode)
+  mode ? data_store.find_todos(id) : list[:todos]
+end
+
 # gen a unique id # moved to SessionPersistence
 # def next_id(items)
 #   max = items.map { |item| item[:id] }.max || 0
@@ -172,7 +177,7 @@ end
 
 # create a new list (Todo obj)
 post "/lists" do
-  list_name = params[:list_name].strip
+  list_name = params[:list_name].strip # could use a fn for this
 
   error = err_for_list_name(list_name)
   if error
@@ -192,10 +197,10 @@ end
 
 # view a specific list (Todo obj)
 get "/lists/:list_id" do
-  @list_id = params[:list_id].to_i
+  @list_id = params[:list_id].to_i # could use a fn for this
   @list = load_list(@list_id)
   @mode = db_mode
-  @todos = db_mode ? @storage.find_todos(@list_id) : @list[:todos]
+  @todos = get_todos(@storage, @list_id, @list, @mode)
   erb :specific_list, layout: :layout
 end
 
@@ -217,7 +222,7 @@ post "/lists/:list_id" do
     # display an err msg and re-render the form to allow err correction
     session[:error] = error
     @mode = db_mode
-    @todos = @mode ? @storage.find_todos(@list_id) : @list[:todos]
+    @todos = get_todos(@storage, @list_id, @list, @mode)
     erb :specific_list, layout: :layout
   else
     # update the list, display a success msg, and redirect
@@ -270,7 +275,7 @@ post "/lists/:list_id/todos" do
     # display an err msg and re-render the form to allow err correction
     session[:error] = error
     @mode = db_mode
-    @todos = @mode ? @storage.find_todos(@list_id) : @list[:todos]
+    @todos = get_todos(@storage, @list_id, @list, @mode)
     erb :specific_list, layout: :layout
   else
     # create the new todo item, display a success msg, and redirect
@@ -294,7 +299,7 @@ post "/lists/:list_id/todos/:todo_id/delete" do
     # display an err msg and re-render the form to allow err correction
     session[:error] = 'Could not delete todo'
     @mode = db_mode
-    @todos = @mode ? @storage.find_todos(@list_id) : @list[:todos]
+    @todos = get_todos(@storage, @list_id, @list, @mode)
     erb :specific_list, layout: :layout
   else
     # chk to see whether the req was sent over AJAX
